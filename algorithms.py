@@ -245,3 +245,45 @@ class TSFunctionApproximation(Policy):
 
     def get_name(self):
         return "Thompson Sampling with function approximation"
+
+    
+class MaillardSampling(Policy):
+    """
+    The Maillard sampling algorithm is a Bayesian algorithm. It maintains K Beta distributions Beta_k(win+1, loss+1)
+    where win is the number of samples in which the arm k returns reward 1 and loss is that with reward 0.
+    At each step, the algorithm samples K values from K Beta distributions. Then, it chooses the arm with largest value.
+    See "Maillard Sampling: Boltzmann Exploration Done Optimally" for details.
+    """
+    def __init__(self, narms, horizon):
+        self.K = narms
+        self.T = horizon
+        self.npulls = np.zeros(self.K, dtype=np.int32)
+        self.sample_mean = np.zeros(self.K)
+        self.t = 0
+
+    def select_arm(self):
+        tmp = np.zeros(self.K)
+        empirical_opt = np.max(self.sample_mean)
+        if self.t < self.K:
+            return self.t
+        for i in range(self.K):
+            tmp[i] = np.exp(-self.npulls[i]/2 * (empirical_opt - self.sample_mean[i]) ** 2)
+        tmp = tmp / np.sum(tmp)
+        action = np.random.choice(list(range(self.K)), p=tmp)
+        return action
+
+    def update(self, chosen_arm, reward):
+        self.npulls[chosen_arm] += 1
+        n = self.npulls[chosen_arm]
+        value = self.sample_mean[chosen_arm]
+        new_value = ((n - 1) / float(n)) * value + (1 / float(n)) * reward
+        self.sample_mean[chosen_arm] = new_value
+        self.t += 1
+
+    def reset(self):
+        self.npulls = np.zeros(self.K, dtype=np.int32)
+        self.sample_mean = np.zeros(self.K)
+        self.t = 0
+
+    def get_name(self):
+        return "Maillard Sampling"
